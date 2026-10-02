@@ -1,7 +1,119 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Memory multijoueur gratuit, sans classement."><title>Memory — Jeu multijoueur</title><link rel="stylesheet" href="style.css"></head><body><main>
-<section id="setup" class="screen"><div class="card-panel intro"><div class="eyebrow">MEMORY • JEU EN GROUPE</div><h1>Un Memory à partager</h1><p class="lead">Jouez ensemble, chacun depuis son ordinateur ou sa tablette. Aucun classement : seulement le plaisir de trouver les paires.</p><div class="form-grid"><label>Votre prénom<input id="hostName" maxlength="18" placeholder="Ex. Marie"></label><label>Nombre de joueurs<select id="playerCount"><option value="2">2 joueurs — 9 paires</option><option value="3">3 joueurs — 10 paires</option><option value="4">4 joueurs — 11 paires</option><option value="5">5 joueurs — 12 paires</option><option value="6">6 joueurs — 13 paires</option><option value="7">7 joueurs — 14 paires</option><option value="8">8 joueurs — 15 paires</option><option value="9">9 joueurs — 16 paires</option><option value="10">10 joueurs — 17 paires</option></select></label></div><button id="createBtn" class="primary">Créer une partie</button><p class="tiny">100 % gratuit : hébergement GitHub Pages et connexion directe entre les joueurs.</p></div></section>
-<section id="lobby" class="screen hidden"><div class="card-panel"><div class="eyebrow">SALLE D'ATTENTE</div><h2>Partagez le lien de la partie</h2><p>Les participants ouvrent le lien sur leur ordinateur ou leur tablette, puis indiquent leur prénom.</p><div class="share-box"><input id="shareUrl" readonly><button id="copyBtn">Copier</button></div><div class="room-code">Code de partie : <strong id="roomCode"></strong></div><div id="playerList" class="players"></div><button id="startBtn" class="primary">Lancer la partie</button><p id="lobbyHint" class="hint"></p></div></section>
-<section id="join" class="screen hidden"><div class="card-panel narrow"><div class="eyebrow">REJOINDRE UNE PARTIE</div><h2>Bienvenue !</h2><p>Indiquez votre prénom pour rejoindre la partie.</p><label>Votre prénom<input id="joinName" maxlength="18" placeholder="Ex. Paul"></label><button id="joinBtn" class="primary">Rejoindre</button><p id="joinHint" class="hint"></p></div></section>
-<section id="game" class="hidden"><header class="game-header"><div><div class="eyebrow">MEMORY</div><h2 id="turnText">À vous de jouer</h2><p id="gameInfo"></p></div><button id="gameShareBtn" class="secondary">Partager la partie</button></header><div id="scores" class="scores"></div><div id="board" class="board"></div></section>
-<section id="end" class="screen hidden"><div class="card-panel end-panel"><div class="eyebrow">PARTIE TERMINÉE</div><h1>Merci d'avoir joué !</h1><p class="lead">Bravo à tout le monde pour votre participation. L'important était de jouer ensemble et de passer un bon moment.</p><div id="finalScores" class="final-scores"></div><button id="rematchBtn" class="primary">↻ Revanche</button><button id="backBtn" class="secondary">Nouvelle partie</button></div></section>
-</main><div id="toast" class="toast"></div><script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script><script src="app.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Memory – 10 joueurs</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:900px;margin:0 auto;padding:24px;background:#f7f7f7;color:#222}
+h1{margin-bottom:4px}.sub{color:#666;margin-top:0}
+.top,.info,.setup,.results{background:white;border:1px solid #ddd;border-radius:16px;padding:16px;margin:14px 0}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+button,input{font:inherit}button{cursor:pointer;border:1px solid #ccc;border-radius:10px;padding:10px 14px;background:#f2f2f2}
+button:hover{background:#e8e8e8}input{padding:10px;border:1px solid #ccc;border-radius:10px;width:min(100%,600px)}
+.players{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}.player{padding:9px 12px;border:1px solid #ddd;border-radius:12px;background:white;min-width:85px}.current{outline:3px solid #777}
+.info{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}.turn{font-size:21px;font-weight:700}
+.message{text-align:center;min-height:28px;font-weight:600}
+.board{display:grid;grid-template-columns:repeat(8,1fr);gap:9px}
+.card{aspect-ratio:1;border:2px solid #ccc;border-radius:14px;background:white;font-size:clamp(22px,4vw,36px);font-weight:700;box-shadow:0 2px 5px #0001}
+.card.open,.card.done{background:#ececff}.card.done{opacity:.65;cursor:default}
+.hidden{display:none}.small{font-size:13px;color:#666}
+@media(max-width:600px){body{padding:12px}.board{grid-template-columns:repeat(5,1fr);gap:7px}.card{border-radius:10px}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div><h1>🧠 Memory – 10 joueurs</h1><p class="sub">20 paires · 40 cartes · chacun joue à son tour</p></div>
+  <button id="reset">Nouvelle partie</button>
+</div>
+
+<div class="setup">
+  <label><strong>Prénoms des 10 participants</strong><br>
+  <input id="names" placeholder="Ex. Marie, Paul, Jeanne, Marc, ...">
+  </label>
+  <button id="start">Valider et commencer</button>
+  <p class="small">Sépare les prénoms par des virgules. Si moins de 10 sont indiqués, les places restantes seront nommées « Joueur 6 », etc.</p>
+</div>
+
+<div id="players" class="players"></div>
+
+<div class="info">
+  <div><span class="small">Au tour de</span><div id="turn" class="turn">Joueur 1</div></div>
+  <div><div>Coups : <strong id="moves">0</strong></div><div>Paires : <strong id="pairs">0 / 20</strong></div></div>
+</div>
+
+<div id="message" class="message"></div>
+<div id="board" class="board"></div>
+
+<div id="results" class="results hidden">
+<h2>🏆 Résultats</h2><div id="ranking"></div>
+</div>
+
+<script>
+(() => {
+const symbols=['🌷','☀️','🍎','🐱','🎵','🌈','🌸','🍀','⭐','🐶','🍓','🌻','🎈','🦋','🍋','🎨','🐼','🍉','🌙','❤️'];
+let players=Array.from({length:10},(_,i)=>({name:'Joueur '+(i+1),score:0}));
+let current=0,deck=[],first=null,second=null,locked=false,moves=0,found=0,timer=null;
+const board=document.getElementById('board'), turn=document.getElementById('turn');
+const movesEl=document.getElementById('moves'),pairsEl=document.getElementById('pairs');
+const message=document.getElementById('message'),playersEl=document.getElementById('players');
+const results=document.getElementById('results'),ranking=document.getElementById('ranking');
+
+function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function safe(s){return s.replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function startGame(){
+ clearTimeout(timer);
+ deck=shuffle(symbols.flatMap((s)=>[{s},{s}]).map((x,i)=>({...x,id:i,open:false,done:false})));
+ current=0;players.forEach(p=>p.score=0);first=null;second=null;locked=false;moves=0;found=0;
+ results.classList.add('hidden');message.textContent='La partie commence !';render();
+ setTimeout(()=>message.textContent='',900);
+}
+function renderPlayers(){
+ playersEl.innerHTML=players.map((p,i)=>`<div class="player ${i===current?'current':''}"><strong>${safe(p.name)}</strong><br><span class="small">${p.score} paire${p.score!==1?'s':''}</span></div>`).join('');
+ turn.textContent=players[current].name;
+}
+function render(){
+ board.innerHTML='';
+ deck.forEach((c,i)=>{
+   const b=document.createElement('button');b.className='card '+((c.open||c.done)?'open ':'')+(c.done?'done':'');
+   b.textContent=(c.open||c.done)?c.s:'?';b.setAttribute('aria-label',(c.open||c.done)?'Carte révélée':'Carte cachée');
+   b.onclick=()=>flip(i);board.appendChild(b);
+ });
+ movesEl.textContent=moves;pairsEl.textContent=found+' / 20';renderPlayers();
+}
+function flip(i){
+ if(locked)return;const c=deck[i];if(c.open||c.done)return;
+ c.open=true;render();
+ if(first===null){first=i;message.textContent=players[current].name+' : choisis une deuxième carte.';return}
+ second=i;locked=true;moves++;
+ const a=deck[first],b=deck[second];
+ if(a.s===b.s){
+   a.done=b.done=true;found++;players[current].score++;first=second=null;locked=false;render();
+   if(found===20){endGame();return}
+   message.textContent='🎉 Paire trouvée ! '+players[current].name+' rejoue.';
+   setTimeout(()=>message.textContent='',900);
+ }else{
+   message.textContent='Pas de paire. Tour suivant…';
+   timer=setTimeout(()=>{a.open=b.open=false;first=second=null;locked=false;current=(current+1)%players.length;render();message.textContent='À '+players[current].name+' !'},1100);
+ }
+}
+function endGame(){
+ render();const sorted=[...players].sort((a,b)=>b.score-a.score);
+ ranking.innerHTML=sorted.map((p,i)=>`<div style="display:flex;justify-content:space-between;padding:5px 0"><span><strong>${i+1}.</strong> ${safe(p.name)}</span><strong>${p.score} paire${p.score!==1?'s':''}</strong></div>`).join('');
+ results.classList.remove('hidden');message.textContent='🎉 Partie terminée ! Bravo à tous les participants.';
+}
+document.getElementById('start').onclick=()=>{
+ const raw=document.getElementById('names').value.trim();
+ if(raw){
+   const arr=raw.split(',').map(x=>x.trim()).filter(Boolean).slice(0,10);
+   while(arr.length<10)arr.push('Joueur '+(arr.length+1));
+   players=arr.map(name=>({name:name.slice(0,24),score:0}));
+ }
+ startGame();
+};
+document.getElementById('reset').onclick=startGame;
+startGame();
+})();
+</script>
+</body>
+</html>
